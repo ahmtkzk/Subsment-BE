@@ -5,12 +5,15 @@ WORKDIR /build
 
 COPY .mvn/ .mvn/
 COPY mvnw pom.xml ./
-RUN chmod +x mvnw && ./mvnw -B -q dependency:go-offline
+RUN chmod +x mvnw
 
 COPY src ./src
-RUN ./mvnw -B -q clean package -DskipTests \
-    && mkdir -p target/extracted \
-    && java -Djarmode=tools -jar target/*.jar extract --layers --destination target/extracted
+RUN --mount=type=cache,target=/root/.m2 \
+    ./mvnw -B -q clean package -DskipTests
+
+RUN mkdir -p target/extracted \
+    && java -Djarmode=tools -jar target/*-SNAPSHOT.jar \
+         extract --layers --launcher --destination target/extracted
 
 FROM eclipse-temurin:21-jre-alpine AS runtime
 WORKDIR /app
@@ -18,10 +21,10 @@ WORKDIR /app
 RUN addgroup -S spring && adduser -S spring -G spring
 
 ARG EXTRACTED=/build/target/extracted
-COPY --from=builder ${EXTRACTED}/dependencies/ ./
-COPY --from=builder ${EXTRACTED}/spring-boot-loader/ ./
-COPY --from=builder ${EXTRACTED}/snapshot-dependencies/ ./
-COPY --from=builder ${EXTRACTED}/application/ ./
+COPY --from=builder --chown=spring:spring ${EXTRACTED}/dependencies/ ./
+COPY --from=builder --chown=spring:spring ${EXTRACTED}/spring-boot-loader/ ./
+COPY --from=builder --chown=spring:spring ${EXTRACTED}/snapshot-dependencies/ ./
+COPY --from=builder --chown=spring:spring ${EXTRACTED}/application/ ./
 
 USER spring:spring
 
