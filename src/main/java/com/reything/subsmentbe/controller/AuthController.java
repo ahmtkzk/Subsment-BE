@@ -1,6 +1,7 @@
 package com.reything.subsmentbe.controller;
 
 import com.reything.subsmentbe.dto.auth.AuthResponse;
+import com.reything.subsmentbe.dto.auth.GoogleLoginRequest;
 import com.reything.subsmentbe.dto.auth.LoginRequest;
 import com.reything.subsmentbe.dto.auth.RegisterRequest;
 import com.reything.subsmentbe.dto.auth.TokenResponse;
@@ -43,6 +44,12 @@ public class AuthController {
     @Operation(summary = "Giriş yap")
     public AuthResponse login(@Valid @RequestBody LoginRequest req) {
         return authService.login(req);
+    }
+
+    @PostMapping("/google")
+    @Operation(summary = "Google ile giriş yap veya kaydol")
+    public AuthResponse loginWithGoogle(@Valid @RequestBody GoogleLoginRequest req) {
+        return authService.loginWithGoogle(req);
     }
 
     @PostMapping("/logout")

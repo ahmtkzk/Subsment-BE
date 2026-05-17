@@ -30,6 +30,8 @@ app:
     access-ttl-minutes: 1440
     refresh-ttl-minutes: 10080
     issuer: subsment-be
+  google:
+    client-id: 105409663725971824482
 
 logging:
   level:

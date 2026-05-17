@@ -20,6 +20,15 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.OffsetDateTime;
 import java.util.UUID;
 
+import com.google.api.client.googleapis.auth.oauth2.GoogleIdToken;
+import com.google.api.client.googleapis.auth.oauth2.GoogleIdTokenVerifier;
+import com.google.api.client.http.javanet.NetHttpTransport;
+import com.google.api.client.json.gson.GsonFactory;
+import org.springframework.beans.factory.annotation.Value;
+import com.reything.subsmentbe.dto.auth.GoogleLoginRequest;
+import java.util.Collections;
+import java.util.Optional;
+
 @Service
 public class AuthService {
 
@@ -29,13 +38,74 @@ public class AuthService {
     private final ProfileRepository profileRepository;
     private final PasswordEncoder passwordEncoder;
     private final JwtService jwtService;
+    private final GoogleIdTokenVerifier googleIdTokenVerifier;
 
     public AuthService(UserRepository userRepository, ProfileRepository profileRepository,
-                       PasswordEncoder passwordEncoder, JwtService jwtService) {
+                       PasswordEncoder passwordEncoder, JwtService jwtService,
+                       @Value("${app.google.client-id}") String googleClientId) {
         this.userRepository = userRepository;
         this.profileRepository = profileRepository;
         this.passwordEncoder = passwordEncoder;
         this.jwtService = jwtService;
+        this.googleIdTokenVerifier = new GoogleIdTokenVerifier.Builder(new NetHttpTransport(), new GsonFactory())
+                .setAudience(Collections.singletonList(googleClientId))
+                .build();
+    }
+
+    @Transactional
+    public AuthResponse loginWithGoogle(GoogleLoginRequest req) {
+        log.info("[AUTH] Google ile giriş isteği alındı");
+        try {
+            GoogleIdToken idToken = googleIdTokenVerifier.verify(req.idToken());
+            if (idToken == null) {
+                log.warn("[AUTH] Google token geçersiz");
+                throw ApiException.unauthorized("Geçersiz Google token");
+            }
+
+            GoogleIdToken.Payload payload = idToken.getPayload();
+            String email = payload.getEmail();
+            String name = (String) payload.get("name");
+
+            Optional<User> optionalUser = userRepository.findByEmail(email);
+            User user;
+
+            if (optionalUser.isPresent()) {
+                user = optionalUser.get();
+                log.info("[AUTH] Mevcut Google kullanıcısı ile giriş yapıldı - email: {}", email);
+            } else {
+                OffsetDateTime now = OffsetDateTime.now();
+                user = User.builder()
+                        .id(UUID.randomUUID())
+                        .email(email)
+                        .name(name != null ? name : "Google User")
+                        // Rastgele güvenli bir şifre atıyoruz, çünkü bu kullanıcı Google ile giriş yapıyor.
+                        .password(passwordEncoder.encode(UUID.randomUUID().toString()))
+                        .createdAt(now)
+                        .updatedAt(now)
+                        .build();
+                userRepository.save(user);
+
+                Profile profile = Profile.builder()
+                        .id(UUID.randomUUID())
+                        .userId(user.getId())
+                        .primaryCurrency(Currency.TRY)
+                        .convertForeignCurrency(true)
+                        .darkMode(false)
+                        .notificationsEnabled(true)
+                        .cancelReminderDays(3)
+                        .createdAt(now)
+                        .updatedAt(now)
+                        .build();
+                profileRepository.save(profile);
+                log.info("[AUTH] Yeni Google kullanıcısı oluşturuldu - email: {}", email);
+            }
+
+            String token = jwtService.generateAccessToken(user.getId(), user.getEmail());
+            return new AuthResponse(true, new UserSummary(user.getId(), user.getName(), user.getEmail()), token, "Google ile giriş başarılı");
+        } catch (Exception e) {
+            log.error("[AUTH] Google token doğrulama hatası", e);
+            throw ApiException.unauthorized("Google girişi başarısız oldu");
+        }
     }
 
     @Transactional
