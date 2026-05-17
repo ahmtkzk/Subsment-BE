@@ -1,0 +1,32 @@
+spring:
+  application:
+    name: subsmentbe
+  datasource:
+    url: jdbc:postgresql://91.98.225.207:31245/subsmentdb
+    username: admin
+    password: admin
+    driver-class-name: org.postgresql.Driver
+  jpa:
+    hibernate:
+      ddl-auto: update
+    open-in-view: false
+    properties:
+      hibernate:
+        format_sql: false
+        jdbc:
+          time_zone: UTC
+
+springdoc:
+  swagger-ui:
+    path: /swagger-ui.html
+    operations-sorter: method
+    tags-sorter: alpha
+  api-docs:
+    path: /v3/api-docs
+
+app:
+  jwt:
+    secret: TXVjaC1Mb25nZXItU2VjcmV0LUtleS1Gb3ItU3Vic21lbnQtSldULTI1Ni1CaXQtQ29tcGxpYW50LVNlY3JldA==
+    access-ttl-minutes: 1440
+    refresh-ttl-minutes: 10080
+    issuer: subsment-be
