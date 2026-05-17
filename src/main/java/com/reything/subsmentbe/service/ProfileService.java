@@ -5,6 +5,8 @@ import com.reything.subsmentbe.domain.enums.Currency;
 import com.reything.subsmentbe.dto.profile.ProfileResponse;
 import com.reything.subsmentbe.dto.profile.UpdateProfileRequest;
 import com.reything.subsmentbe.repository.ProfileRepository;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -14,6 +16,8 @@ import java.util.UUID;
 @Service
 public class ProfileService {
 
+    private static final Logger log = LoggerFactory.getLogger(ProfileService.class);
+
     private final ProfileRepository profileRepository;
 
     public ProfileService(ProfileRepository profileRepository) {
@@ -22,19 +26,28 @@ public class ProfileService {
 
     @Transactional
     public ProfileResponse getOrCreate(UUID userId) {
-        Profile p = profileRepository.findByUserId(userId).orElseGet(() -> createDefault(userId));
+        log.info("[PROFILE] Profil istendi - userId: {}", userId);
+        Profile p = profileRepository.findByUserId(userId).orElseGet(() -> {
+            log.info("[PROFILE] Profil bulunamadı, varsayılan oluşturuluyor - userId: {}", userId);
+            return createDefault(userId);
+        });
         return toResponse(p);
     }
 
     @Transactional
     public ProfileResponse update(UUID userId, UpdateProfileRequest req) {
-        Profile p = profileRepository.findByUserId(userId).orElseGet(() -> createDefault(userId));
+        log.info("[PROFILE] Güncelleme isteği - userId: {}", userId);
+        Profile p = profileRepository.findByUserId(userId).orElseGet(() -> {
+            log.info("[PROFILE] Profil bulunamadı, varsayılan oluşturuluyor - userId: {}", userId);
+            return createDefault(userId);
+        });
         if (req.primaryCurrency() != null) p.setPrimaryCurrency(req.primaryCurrency());
         if (req.convertForeignCurrency() != null) p.setConvertForeignCurrency(req.convertForeignCurrency());
         if (req.darkMode() != null) p.setDarkMode(req.darkMode());
         if (req.notificationsEnabled() != null) p.setNotificationsEnabled(req.notificationsEnabled());
         if (req.cancelReminderDays() != null) p.setCancelReminderDays(req.cancelReminderDays());
         p.setUpdatedAt(OffsetDateTime.now());
+        log.info("[PROFILE] Profil güncellendi - userId: {}", userId);
         return toResponse(p);
     }
 
@@ -55,7 +68,9 @@ public class ProfileService {
                 .createdAt(now)
                 .updatedAt(now)
                 .build();
-        return profileRepository.save(p);
+        Profile saved = profileRepository.save(p);
+        log.info("[PROFILE] Varsayılan profil oluşturuldu - userId: {}, profileId: {}", userId, saved.getId());
+        return saved;
     }
 
     private ProfileResponse toResponse(Profile p) {

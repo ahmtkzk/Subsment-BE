@@ -30,3 +30,13 @@ app:
     access-ttl-minutes: 1440
     refresh-ttl-minutes: 10080
     issuer: subsment-be
+
+logging:
+  level:
+    root: WARN
+    com.reything.subsmentbe: INFO
+    org.springframework.web: WARN
+    org.springframework.security: WARN
+    org.hibernate.SQL: WARN
+  pattern:
+    console: "%d{HH:mm:ss.SSS} %clr(%-5level){faint} %clr([%-20.20logger{20}]){cyan} %msg%n"

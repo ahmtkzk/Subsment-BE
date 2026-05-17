@@ -10,6 +10,8 @@ import com.reything.subsmentbe.exception.ApiException;
 import com.reything.subsmentbe.repository.SubscriptionRepository;
 import com.reything.subsmentbe.util.Periods;
 import jakarta.persistence.criteria.Predicate;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
@@ -27,6 +29,8 @@ import java.util.UUID;
 @Service
 public class SubscriptionService {
 
+    private static final Logger log = LoggerFactory.getLogger(SubscriptionService.class);
+
     private final SubscriptionRepository subscriptionRepository;
 
     public SubscriptionService(SubscriptionRepository subscriptionRepository) {
@@ -35,6 +39,8 @@ public class SubscriptionService {
 
     public Page<SubscriptionResponse> list(UUID userId, String status, String category,
                                             String search, int page, int limit) {
+        log.info("[SUBSCRIPTION] Liste isteği - userId: {}, status: {}, category: {}, search: '{}', page: {}, limit: {}",
+                userId, status, category, search, page, limit);
         int safeLimit = Math.min(Math.max(limit, 1), 500);
         int safePage = Math.max(page, 1);
         Pageable pageable = PageRequest.of(safePage - 1, safeLimit, Sort.by(Sort.Direction.DESC, "createdAt"));
@@ -59,15 +65,22 @@ public class SubscriptionService {
     }
 
     public SubscriptionResponse get(UUID userId, UUID id) {
+        log.info("[SUBSCRIPTION] Tekil istek - userId: {}, subscriptionId: {}", userId, id);
         Subscription s = subscriptionRepository.findByIdAndUserId(id, userId)
-                .orElseThrow(() -> ApiException.notFound("Abonelik bulunamadı"));
+                .orElseThrow(() -> {
+                    log.warn("[SUBSCRIPTION] Bulunamadı - userId: {}, subscriptionId: {}", userId, id);
+                    return ApiException.notFound("Abonelik bulunamadı");
+                });
         return SubscriptionMapper.toResponse(s);
     }
 
     @Transactional
     public SubscriptionResponse create(UUID userId, CreateSubscriptionRequest req) {
+        log.info("[SUBSCRIPTION] Yeni abonelik oluşturma isteği - userId: {}, name: '{}', amount: {} {}, period: {}",
+                userId, req.name(), req.amount(), req.currency(), req.period());
         if (req.firstPaymentDate() != null && req.nextPaymentDate() != null
                 && req.nextPaymentDate().isBefore(req.firstPaymentDate())) {
+            log.warn("[SUBSCRIPTION] Geçersiz tarih aralığı - nextPaymentDate firstPaymentDate'ten önce - userId: {}", userId);
             throw ApiException.badRequest("next_payment_date, first_payment_date'ten önce olamaz");
         }
         OffsetDateTime now = OffsetDateTime.now();
@@ -96,13 +109,18 @@ public class SubscriptionService {
                 .updatedAt(now)
                 .build();
         Subscription saved = subscriptionRepository.save(s);
+        log.info("[SUBSCRIPTION] Abonelik oluşturuldu - id: {}, userId: {}, name: '{}'", saved.getId(), userId, saved.getName());
         return SubscriptionMapper.toResponse(saved);
     }
 
     @Transactional
     public SubscriptionResponse update(UUID userId, UUID id, UpdateSubscriptionRequest req) {
+        log.info("[SUBSCRIPTION] Güncelleme isteği - userId: {}, subscriptionId: {}", userId, id);
         Subscription s = subscriptionRepository.findByIdAndUserId(id, userId)
-                .orElseThrow(() -> ApiException.notFound("Abonelik bulunamadı"));
+                .orElseThrow(() -> {
+                    log.warn("[SUBSCRIPTION] Güncelleme başarısız - bulunamadı - userId: {}, subscriptionId: {}", userId, id);
+                    return ApiException.notFound("Abonelik bulunamadı");
+                });
         if (req.name() != null) s.setName(req.name());
         if (req.category() != null) s.setCategory(req.category());
         if (req.amount() != null) s.setAmount(req.amount());
@@ -120,24 +138,35 @@ public class SubscriptionService {
         if (req.emoji() != null) s.setEmoji(req.emoji());
         if (req.notes() != null) s.setNotes(req.notes());
         s.setUpdatedAt(OffsetDateTime.now());
+        log.info("[SUBSCRIPTION] Abonelik güncellendi - id: {}, userId: {}", id, userId);
         return SubscriptionMapper.toResponse(s);
     }
 
     @Transactional
     public void delete(UUID userId, UUID id) {
+        log.info("[SUBSCRIPTION] Silme isteği - userId: {}, subscriptionId: {}", userId, id);
         Subscription s = subscriptionRepository.findByIdAndUserId(id, userId)
-                .orElseThrow(() -> ApiException.notFound("Abonelik bulunamadı"));
+                .orElseThrow(() -> {
+                    log.warn("[SUBSCRIPTION] Silme başarısız - bulunamadı - userId: {}, subscriptionId: {}", userId, id);
+                    return ApiException.notFound("Abonelik bulunamadı");
+                });
         OffsetDateTime now = OffsetDateTime.now();
         s.setDeletedAt(now);
         s.setUpdatedAt(now);
+        log.info("[SUBSCRIPTION] Abonelik silindi (soft-delete) - id: {}, userId: {}", id, userId);
     }
 
     @Transactional
     public StatusUpdateResponse updateStatus(UUID userId, UUID id, SubscriptionStatus status) {
+        log.info("[SUBSCRIPTION] Durum güncelleme isteği - userId: {}, subscriptionId: {}, newStatus: {}", userId, id, status);
         Subscription s = subscriptionRepository.findByIdAndUserId(id, userId)
-                .orElseThrow(() -> ApiException.notFound("Abonelik bulunamadı"));
+                .orElseThrow(() -> {
+                    log.warn("[SUBSCRIPTION] Durum güncelleme başarısız - bulunamadı - userId: {}, subscriptionId: {}", userId, id);
+                    return ApiException.notFound("Abonelik bulunamadı");
+                });
         s.setStatus(status);
         s.setUpdatedAt(OffsetDateTime.now());
+        log.info("[SUBSCRIPTION] Durum güncellendi - id: {}, userId: {}, status: {}", id, userId, status);
         return new StatusUpdateResponse(s.getId(), s.getStatus(), s.getUpdatedAt());
     }
 
